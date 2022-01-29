@@ -9,12 +9,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
-	"sync"
 )
 
 const (
-	HTTPsProvider   = "wss://ropsten.infura.io/ws/v3/"
-	ContractAddress = "0x192e52E8f5BD2C28a011706624d006bae14bB6B2"
+	HTTPsProvider   = "wss://mainnet.infura.io/ws/v3/b754952dfaa24260ac2777131f6acd9b"
+	ContractAddress = "0x1554F51F18F8E3fBe83E4442420E40Efc57ff446"
 )
 
 func main() {
@@ -22,7 +21,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	contract, err := abibindings.NewContractabiCaller(common.HexToAddress(ContractAddress), client)
+	contract, err := abibindings.NewContractabi(common.HexToAddress(ContractAddress), client)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -36,36 +35,31 @@ func main() {
 		select {
 		case err = <-sub.Err():
 			log.Fatalln(err)
-		case header := <-headers:
+		case <-headers:
 			go func() {
-				var wg sync.WaitGroup
-				var paused, whitelist bool
+				pausedChan := make(chan bool)
+				whitelistChan := make(chan bool)
 				go func() {
-					wg.Add(1)
-					p, err := contract.Paused(&bind.CallOpts{BlockNumber: header.Number})
+					p, err := contract.Paused(&bind.CallOpts{})
 					if err != nil {
 						log.Fatalln(err)
 					}
-					paused = p
-					wg.Done()
+					pausedChan <- p
 				}()
 				go func() {
-					wg.Add(1)
-					wl, err := contract.WhitelistActive(&bind.CallOpts{BlockNumber: header.Number})
+					wl, err := contract.WhitelistActive(&bind.CallOpts{})
 					if err != nil {
 						log.Fatalln(err)
 					}
-					whitelist = wl
-					wg.Done()
+					whitelistChan <- wl
 				}()
-				wg.Wait()
-				fmt.Println(paused, whitelist)
+				paused := <-pausedChan
+				whitelist := <-whitelistChan
 				if !paused && !whitelist {
-					fmt.Println(1)
-					return
+					fmt.Println("MINT!")
 				}
-				fmt.Println(2)
 			}()
 		}
 	}
+
 }
